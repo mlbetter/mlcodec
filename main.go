@@ -27,6 +27,4 @@ func main() {
 		log.Println("source file path error or target path error")
 		return
 	}
-
-	return
 }
