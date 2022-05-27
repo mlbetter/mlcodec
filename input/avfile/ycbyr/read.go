@@ -66,8 +66,19 @@ func (y *YCbCr) GetFrameCnt() int {
 	return y.frameCnt
 }
 
+// readYUV420 convert byte to image.ycbyr
+// adout yuv420 format https://blog.csdn.net/mzpmzk/article/details/81239532
 func (y *YCbCr) readYUV420(r *bufio.Reader) error {
-	bufIter := make([]byte, y.weight*y.height*3/2*8)
+
+	var (
+		frameSize = y.weight * y.height * 3 / 2 * 8
+		yBegin    = 0
+		ySize     = y.weight * y.height * 8
+		cbBegin   = yBegin + ySize
+		cbSize    = y.weight * y.height / 4 * 8
+		crBegin   = cbBegin + cbSize
+		bufIter   = make([]byte, frameSize)
+	)
 
 	for {
 		n, err := r.Read(bufIter)
@@ -78,7 +89,7 @@ func (y *YCbCr) readYUV420(r *bufio.Reader) error {
 			log.Println("read file done")
 			break
 		}
-		if n != y.weight*y.height*2 {
+		if n != frameSize {
 			log.Println("read length error, len:", n)
 			return fmt.Errorf("read file error")
 		}
@@ -88,25 +99,21 @@ func (y *YCbCr) readYUV420(r *bufio.Reader) error {
 			Max: image.Point{X: y.weight, Y: y.height},
 		}, image.YCbCrSubsampleRatio420)
 
-		i := 0
 		// y
-		for i < y.weight*y.height*8 {
+		for i := yBegin; i < cbBegin; {
 			imageIter.Y[i] = BytesToUINT8(bufIter[i : i+8])
 			i = i + 8
 		}
-
 		// u
-		for i < y.weight*y.height/4*8 {
+		for i := cbBegin; i < crBegin; {
 			imageIter.Cb[i] = BytesToUINT8(bufIter[i : i+8])
 			i = i + 8
 		}
-
 		// v
-		for i < y.weight*y.height/4*8 {
+		for i := crBegin; i < frameSize; {
 			imageIter.Cr[i] = BytesToUINT8(bufIter[i : i+8])
 			i = i + 8
 		}
-
 		y.frames = append(y.frames, imageIter)
 	}
 	return nil
