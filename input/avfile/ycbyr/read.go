@@ -71,15 +71,16 @@ func (y *YCbCr) GetFrameCnt() int {
 func (y *YCbCr) readYUV420(r *bufio.Reader) error {
 
 	var (
-		frameSize = y.weight * y.height * 3 / 2 * 8
+		frameSize = y.weight * y.height * 3 / 2
 		yBegin    = 0
-		ySize     = y.weight * y.height * 8
+		ySize     = y.weight * y.height
 		cbBegin   = yBegin + ySize
-		cbSize    = y.weight * y.height / 4 * 8
+		cbSize    = y.weight * y.height / 4
 		crBegin   = cbBegin + cbSize
-		bufIter   = make([]byte, frameSize)
+		bufIter   = make([]byte, frameSize+41)
 	)
 
+	index := 0
 	for {
 		n, err := r.Read(bufIter)
 		if err != nil && err != io.EOF {
@@ -89,9 +90,13 @@ func (y *YCbCr) readYUV420(r *bufio.Reader) error {
 			log.Println("read file done")
 			break
 		}
-		if n != frameSize {
-			log.Println("read length error, len:", n)
-			return fmt.Errorf("read file error")
+		if index >= 100 {
+			return nil
+		}
+		if index == 0 {
+			bufIter = bufIter[41:]
+		} else {
+			bufIter = bufIter[6:]
 		}
 
 		imageIter := image.NewYCbCr(image.Rectangle{
@@ -100,21 +105,26 @@ func (y *YCbCr) readYUV420(r *bufio.Reader) error {
 		}, image.YCbCrSubsampleRatio420)
 
 		// y
-		for i := yBegin; i < cbBegin; {
-			imageIter.Y[i] = BytesToUINT8(bufIter[i : i+8])
-			i = i + 8
+		for i := yBegin; i < cbBegin; i++ {
+			imageIter.Y[i] = BytesToUINT8(bufIter[i : i+1])
 		}
-		// u
-		for i := cbBegin; i < crBegin; {
-			imageIter.Cb[i] = BytesToUINT8(bufIter[i : i+8])
-			i = i + 8
+		// uv
+		j := 0
+		for i := cbBegin; i < crBegin; i++ {
+			imageIter.Cb[j] = BytesToUINT8(bufIter[i : i+1])
+			j++
 		}
+		j = 0
 		// v
-		for i := crBegin; i < frameSize; {
-			imageIter.Cr[i] = BytesToUINT8(bufIter[i : i+8])
-			i = i + 8
+		for i := crBegin; i < frameSize; i++ {
+			imageIter.Cr[j] = BytesToUINT8(bufIter[i : i+1])
+			j++
 		}
 		y.frames = append(y.frames, imageIter)
+		log.Println(index, " done...")
+		index++
+		bufIter = make([]byte, frameSize+6)
+		y.frameCnt++
 	}
 	return nil
 }
